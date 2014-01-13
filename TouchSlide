@@ -1,0 +1,145 @@
+var TouchSlide =  function(selector, conf, callback) {
+			callback = callback || null;
+			var that = this;
+			this.init = function(startPos) {
+				var that = this;
+				startPos = startPos || 0;
+				that.manualStart = (startPos > 0);
+				this.currentPos = 0;
+				that.element = null;
+				if (selector.nodeType && selector.nodeType == 1) {
+					that.element = selector;
+				} else if (typeof selector == 'string') {
+					that.element = document.getElementById(selector) || document.querySelector(selector);
+				}
+				that.element.style.display = '-webkit-box';
+				that.element.style.webkitTransitionProperty = '-webkit-transform';
+				that.element.style.webkitTransitionTimingFunction = 'cubic-bezier(0,0,0.25,1)';
+				that.element.style.webkitTransitionDuration = '0';
+				that.element.style.webkitTransform = Support.getTranslate(0);
+				that.conf = conf || {};
+				that.touchEnabled = true;
+				that.currentPoint = startPos;
+				that.currentX = 0;
+				that.startPageX = 0;
+				that.element.addEventListener(Support.eventSupport.start, that, false);
+				that.element.addEventListener(Support.eventSupport.move, that, false);
+				that.element.addEventListener(Support.eventSupport.end, that, false);
+				refresh();
+			};
+			that.handleEvent = function(event) {
+				switch (event.type) {
+					case Support.eventSupport.start:
+						_touchStart(event);
+						break;
+					case Support.eventSupport.move:
+						_touchMove(event);
+						break;
+					case Support.eventSupport.end:
+						_touchEnd(event);
+						break;
+					case 'click':
+						_click(event);
+						break;
+				}
+			};
+			var _click = function(event) {
+				event.stopPropagation();
+				event.preventDefault();
+			};
+			var refresh = function() {
+				var conf = that.conf;
+				that.maxPoint = conf.point || (function() {
+					var childNodes = that.element.childNodes,
+						itemLength = 0,
+						i = 0,
+						len = childNodes.length,
+						node;
+					for (; i < len; i++) {
+						node = childNodes[i];
+						if (node.nodeType === 1) {
+							itemLength++;
+						}
+					}
+					if (itemLength > 0) {
+						itemLength--;
+					}
+					return itemLength;
+				})();
+				that.distance = conf.distance || that.element.scrollWidth / (that.maxPoint + 1);
+				that.maxX = conf.maxX ? -conf.maxX : -that.distance * that.maxPoint;
+				_moveToPoint(that.currentPoint);
+			};
+			var _touchStart = function(event) {
+				if (!that.touchEnabled) {
+					return;
+				}
+				if (!Support.eventSupport.touch) {
+					event.preventDefault();
+				}
+				that.element.style.webkitTransitionDuration = '0';
+				that.scrolling = true;
+				that.moveReady = false;
+				that.startPageX = Support.getPage(event, 'pageX');
+				that.startPageY = Support.getPage(event, 'pageY');
+				that.basePageX = that.startPageX;
+				that.directionX = 0;
+				that.startTime = event.timeStamp;
+			};
+			var _touchMove = function(event) {
+				if (!that.scrolling) {
+					return;
+				}
+				var pageX = Support.getPage(event, 'pageX'),
+					pageY = Support.getPage(event, 'pageY'),
+					distX, newX, deltaX, deltaY;
+				deltaX = Math.abs(pageX - that.startPageX);
+				deltaY = Math.abs(pageY - that.startPageY);
+				if (that.moveReady) {
+					event.preventDefault();
+					event.stopPropagation();
+					distX = pageX - that.basePageX;
+					newX = that.currentX + distX;
+					if (newX >= 0 && newX < that.maxX) {
+						newX = Math.round(that.currentX + distX / 3);
+					}
+					_setX(newX);
+					that.directionX = distX > 0 ? -1 : 1;
+				} else {
+					if (deltaX > 5) {
+						event.preventDefault();
+						event.stopPropagation();
+						that.moveReady = true;
+						that.element.addEventListener('click', that, true);
+					} else if (deltaY > 5) {
+						that.scrolling = false;
+					}
+				}
+				that.basePageX = pageX;
+			};
+			var _touchEnd = function(event) {
+				if (!that.scrolling) {
+					return;
+				}
+				that.scrolling = false;
+				var newPoint = -that.currentX / that.distance;
+				newPoint = (that.directionX > 0) ? Math.ceil(newPoint) : (that.directionX < 0) ? Math.floor(newPoint) : Math.round(newPoint);
+				_moveToPoint(newPoint);
+				if ($.isFunction(callback)) {
+					callback(newPoint);
+				}
+				setTimeout(function() {
+					that.element.removeEventListener('click', that, true);
+				}, 200);
+			};
+			var _setX = function(x) {
+				that.currentX = x;
+				that.element.style.webkitTransform = Support.getTranslate(x);
+			};
+			var _moveToPoint = function(point) {
+				that.currentPoint = (point < 0) ? 0 : (point > that.maxPoint) ? that.maxPoint : parseInt(point);
+				that.element.style.webkitTransitionDuration = that.manualStart ?  '0ms':'500ms';
+				_setX(-that.currentPoint * that.distance)
+				that.manualStart = false;
+			};
+		}
